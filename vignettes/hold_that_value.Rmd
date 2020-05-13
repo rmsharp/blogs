@@ -1,0 +1,171 @@
+---
+title: Hold That Value
+subtitle: "The Convenience of Global Variables Without All the Danger"
+author: "R. Mark Sharp"
+date: "5/11/2020"
+output: html_document
+---
+
+```{r setup, include = FALSE, eval = TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!require('RWordPress')) {
+  devtools::install_github(c("duncantl/XMLRPC", "duncantl/RWordPress"))
+}
+library(knitr)
+library(RWordPress)
+options(WordpressLogin = c(msharp2013 = "Ilikewordpress"), 
+        WordpressURL = "http://rmsharp.me/xmlrpc.php")
+
+```
+```{r knit2wp, eval = FALSE, echo = FALSE}
+# Optional: If you want to see all of the knit2wp arguments that are possible, 
+# run this line.
+knit2wp
+
+# If need be, set your working directory to the location where you stored the Rmd file. 
+
+# Tell knitr to create the html code and upload it to your WordPress site
+setwd("~/Documents/Projects/Active_Projects/Training/2020/blogs/vignettes")
+knit2wp(
+  "hold_that_value.Rmd", 
+  title = "Hold That Value: Using Exported Functions Like Global Variables",
+  publish = FALSE)
+
+```
+
+## Global Variables Are Convenient
+
+I wanted a global variable to serve as a flag that would keep track of state
+as I parsed some text. 
+I could not use a local variable inside the parsing function that was being
+called repeatedly and for several other use specific reasons I wanted a simple
+flag with a value of `TRUE` or `FALSE`. 
+
+I copied the idea from a short article, [A Little R Counter](
+https://www.r-bloggers.com/a-little-r-counter/)
+on www.r-bloggers.com.
+
+
+```{r rblogger-code, echo = TRUE, eval = TRUE}
+CreateCounter <- function(curr.count) {
+  list(
+    increment = function(amount) {
+      curr.count <<- curr.count + amount
+    },
+    value = function() {
+      return(curr.count)
+    }
+  )
+}
+
+```
+
+This lets you do the following:
+
+```{r counter-working, echo = TRUE, eval = TRUE}
+counter <- CreateCounter(10)
+counter$increment(9)
+counter$value()
+
+```
+I wanted to create something only slightly different. 
+I did not need to count but I did want to retain state.
+
+```{r make-true-false, echo = TRUE, eval = TRUE}
+make_true_false_flag <- function(set_value) {
+  if (is.null(set_value) | !"logical" %in% class(set_value))
+    stop("Must provide seed value of TRUE or FALSE")
+  
+  list(
+    set = function(value) {
+      set_value <<- value[[1]] # protection against > 1 value
+    },
+    value = function() {
+      return(set_value)
+    }
+  )
+}
+
+```
+This allows the following simple uses:
+
+```{r make-true-false-examples, echo = TRUE, eval = TRUE}
+# Create function list with `value` defaulted to TRUE
+tf_flag <- make_true_false_flag(TRUE)
+tf_flag$value()
+# reset `value` 
+tf_flag$set(FALSE)
+tf_flag$value()
+# Create function list with `value` defaulted to FALSE
+tf_flag <- make_true_false_flag(FALSE)
+tf_flag$value()
+# reset `value` 
+tf_flag$set(TRUE)
+tf_flag$value()
+```
+
+Of course, as soon as I used the function, it felt a bit of a waste to write
+a function with such limited utility when only slightly more code an no
+more complexity, I could hold and set any state I wanted.
+
+The following code accomplishes that.
+
+```{r make-any-state-holder, echo = TRUE}
+make_flag <- function(set_value, flags = c(TRUE, FALSE)) {
+  if (is.null(set_value) | !is.element(set_value, flags))
+    stop("Must provide seed value from 'flags' vector")
+  
+  list(
+    set = function(value) {
+      set_value <<- value[[1]] # protection against > 1 value
+    },
+    value = function() {
+      return(set_value)
+    }
+  )
+}
+
+```
+
+Of course this can serve to make a `TRUE`, `FALSE` flag holder as demonstrated
+below.
+
+```{r limiting-to-true-false, echo = TRUE}
+# Create function list with `value` defaulted to TRUE
+tf_flag <- make_flag(TRUE, c(TRUE, FALSE))
+tf_flag$value()
+# reset `value` 
+tf_flag$set(FALSE)
+tf_flag$value()
+# Create function list with `value` defaulted to FALSE
+tf_flag <-make_flag(TRUE, c(TRUE, FALSE))
+tf_flag$value()
+# reset `value` 
+tf_flag$set(TRUE)
+tf_flag$value()
+
+```
+
+However, the slight increase in complexity allows you to store, reset, and 
+retrieve from any vector you want.
+```{r examples-any-flag, echo = TRUE}
+#' # Create function list with `value` defaulted to TRUE
+tf_flag <- make_flag("defined", c("defined", "pending", "completed"))
+tf_flag$value()
+# reset `value` 
+tf_flag$set("pending")
+tf_flag$value()
+# Create function list with `value` defaulted to "S"
+letter_flag <- make_flag("S", LETTERS)
+letter_flag$value()
+# reset `value` 
+letter_flag$set("X")
+letter_flag$value()
+# Of course numeric or integer values are allowed
+integer_holder <- make_flag(4, 1:10)
+integer_holder$value()
+# etc.
+
+```
+
+
